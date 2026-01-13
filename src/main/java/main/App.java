@@ -4,6 +4,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import implementation.command.CommandDispatcher;
+import implementation.command.CommandResult;
+import implementation.domain.flow.ProjectContext;
+import implementation.dto.input.CommandInput;
+import implementation.dto.input.InputLoader;
+import implementation.repository.impl.JsonUserRepository;
+import implementation.repository.impl.InMemoryTicketRepository;
+import implementation.service.TicketService;
+import implementation.service.FlowService;
+import implementation.repository.impl.InMemoryMilestoneRepository;
+import implementation.service.MilestoneService;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,9 +54,49 @@ public class App {
             jackson library, available here: https://www.baeldung.com/jackson-annotations
         */
 
-        // TODO 2: process commands.
+        try {
+            List<CommandInput> commands = InputLoader.loadCommands(inputPath);
 
-        // TODO 3: create objectnodes for output, add them to outputs list.
+            ObjectMapper mapper = InputLoader.getMapper();
+            JsonUserRepository userRepo = new JsonUserRepository(INPUT_USERS_FIELD, mapper);
+
+            InMemoryTicketRepository ticketRepo = new InMemoryTicketRepository();
+            InMemoryMilestoneRepository milestoneRepo = new InMemoryMilestoneRepository();
+
+            ProjectContext ctx = ProjectContext.getInstance();
+            if (!commands.isEmpty()) {
+                ctx.setStartDateIfNull(commands.get(0).getTimestamp());
+            }
+            ctx.setInvestorsLost(false);
+
+            FlowService flowService = new FlowService(ctx);
+            TicketService ticketService = new TicketService(ticketRepo, flowService, userRepo, milestoneRepo);
+            MilestoneService milestoneService = new MilestoneService(milestoneRepo, ticketRepo);
+
+            CommandDispatcher dispatcher = new CommandDispatcher(userRepo, ticketService, milestoneService, ctx);
+
+
+            /*
+                TODO 2: process commands.
+            */
+            for (CommandInput input : commands) {
+                if (ctx.areInvestorsLost()) {
+                    break;
+                }
+
+                CommandResult result = dispatcher.dispatch(input);
+
+                /*
+                    TODO 3: create objectnodes for output
+                */
+                if (result != null && result.getOutput() != null) {
+                    outputs.add(result.getOutput());
+                }
+            }
+
+        } catch (IOException e) {
+            System.err.println("Error: " + e.getMessage());
+        }
 
         // DO NOT CHANGE THIS SECTION IN ANY WAY
         try {
