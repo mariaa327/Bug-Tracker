@@ -21,9 +21,9 @@ public class MilestoneService {
 
     public String createMilestone(CommandInput input) {
         for (Integer ticketId : input.getTickets()) {
-            String existing = milestoneRepo.getMilestoneNameByTicket(ticketId);
-            if (existing != null) {
-                return "Tickets " + ticketId + " already assigned to milestone " + existing + ".";
+            String existingMilestone = milestoneRepo.getMilestoneNameByTicket(ticketId);
+            if (existingMilestone != null) {
+                return "Tickets " + ticketId + " already assigned to milestone " + existingMilestone + ".";
             }
         }
 
@@ -38,6 +38,13 @@ public class MilestoneService {
         );
 
         milestoneRepo.add(m);
+
+        for (Integer ticketId : input.getTickets()) {
+            ticketRepo.findById(ticketId).ifPresent(t ->
+                    t.logAddedToMilestone(input.getName(), input.getUsername(), input.getTimestamp())
+            );
+        }
+
         return null;
     }
 
@@ -62,47 +69,97 @@ public class MilestoneService {
 
             List<Integer> openTickets = new ArrayList<>();
             List<Integer> closedTickets = new ArrayList<>();
-            for (Integer tid : m.getTickets()) {
-                ticketRepo.findById(tid).ifPresentOrElse(t -> {
-                    if (t.getStatus() == TicketStatus.CLOSED) closedTickets.add(tid);
-                    else openTickets.add(tid);
-                }, () -> openTickets.add(tid));
-            }
+            splitTicketsByStatus(m, openTickets, closedTickets);
 
             map.put("openTickets", openTickets);
             map.put("closedTickets", closedTickets);
 
             int total = m.getTickets().size();
             int closed = closedTickets.size();
-            map.put("status", (total > 0 && closed == total) ? "COMPLETED" : "ACTIVE");
 
-            long diff = ChronoUnit.DAYS.between(now, m.getDueDate());
-            map.put("daysUntilDue", diff >= 0 ? diff + 1 : 0);
-            map.put("overdueBy", diff < 0 ? Math.abs(diff) + 1 : 0);
+            boolean completed = (total > 0 && closed == total);
+            map.put("status", completed ? "COMPLETED" : "ACTIVE");
 
-            double completion = total == 0 ? 0.0 : Math.round(((double) closed / total) * 100.0) / 100.0;
-            map.put("completionPercentage", completion);
+            LocalDate referenceDate = completed ? completionDateOrNow(m, now) : now;
 
-            List<Map<String, Object>> repartition = new ArrayList<>();
-            for (String dev : m.getAssignedDevs()) {
-                Map<String, Object> devMap = new LinkedHashMap<>();
-                devMap.put("developer", dev);
+            long diff = ChronoUnit.DAYS.between(referenceDate, m.getDueDate());
+            putDueFieldsInclusive(map, diff);
 
-                List<Integer> assignedTickets = new ArrayList<>();
-                for (Integer tid : m.getTickets()) {
-                    ticketRepo.findById(tid).ifPresent(t -> {
-                        if (dev.equals(t.getAssignedTo())) assignedTickets.add(tid);
-                    });
-                }
+            map.put("completionPercentage", completionRatio(closed, total));
 
-                devMap.put("assignedTickets", assignedTickets);
-                repartition.add(devMap);
-            }
-            map.put("repartition", repartition);
+            map.put("repartition", buildRepartition(m));
 
             output.add(map);
         }
 
         return output;
     }
+
+    private LocalDate completionDateOrNow(Milestone m, LocalDate now) {
+        LocalDate completionDate = null;
+
+        for (Integer tId : m.getTickets()) {
+            var tOpt = ticketRepo.findById(tId);
+            if (tOpt.isPresent() && tOpt.get().getClosedAt() != null) {
+                LocalDate c = tOpt.get().getClosedAt();
+                if (completionDate == null || c.isAfter(completionDate)) {
+                    completionDate = c;
+                }
+            }
+        }
+
+        return (completionDate != null) ? completionDate : now;
+    }
+
+    private static void putDueFieldsInclusive(Map<String, Object> map, long diffDays) {
+        long daysUntilDue = diffDays >= 0 ? diffDays + 1 : 0;
+        long overdueBy = diffDays < 0 ? Math.abs(diffDays) + 1 : 0;
+
+        map.put("daysUntilDue", daysUntilDue);
+        map.put("overdueBy", overdueBy);
+    }
+
+    private void splitTicketsByStatus(Milestone m, List<Integer> openTickets, List<Integer> closedTickets) {
+        for (Integer tId : m.getTickets()) {
+            ticketRepo.findById(tId).ifPresentOrElse(t -> {
+                if (t.getStatus() == TicketStatus.CLOSED) {
+                    closedTickets.add(tId);
+                } else {
+                    openTickets.add(tId);
+                }
+            }, () -> openTickets.add(tId));
+        }
+    }
+
+    private List<Map<String, Object>> buildRepartition(Milestone m) {
+        List<Map<String, Object>> repartition = new ArrayList<>();
+
+        for (String dev : m.getAssignedDevs()) {
+            Map<String, Object> devMap = new LinkedHashMap<>();
+            devMap.put("developer", dev);
+
+            List<Integer> assignedTickets = new ArrayList<>();
+            for (Integer tId : m.getTickets()) {
+                var tOpt = ticketRepo.findById(tId);
+                if (tOpt.isPresent() && dev.equals(tOpt.get().getAssignedTo())) {
+                    assignedTickets.add(tId);
+                }
+            }
+
+            devMap.put("assignedTickets", assignedTickets);
+            repartition.add(devMap);
+        }
+
+        return repartition;
+    }
+
+    private static double completionRatio(int closed, int total) {
+        if (total == 0) return 0.0;
+        return round2((double) closed / (double) total);
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
+    }
+
 }

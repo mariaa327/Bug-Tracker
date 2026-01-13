@@ -1,17 +1,19 @@
 package implementation.domain.user;
-
-import java.util.ArrayList;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
-public class User {
+public abstract class User {
     private String username;
     private Role role;
-    private final List<String> subordinates = new ArrayList<>();
+
+    private ExpertiseArea expertiseArea;
+    private SeniorityLevel seniorityLevel;
 
     public User() {}
 
-    public User(String username, Role role) {
+    protected User(String username, Role role) {
         this.username = username;
         this.role = role;
     }
@@ -19,9 +21,32 @@ public class User {
     public String getUsername() {
         return username;
     }
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public Role getRole() {
         return role;
     }
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public ExpertiseArea getExpertiseArea() {
+        return expertiseArea;
+    }
+    public void setExpertiseArea(ExpertiseArea expertiseArea) {
+        this.expertiseArea = expertiseArea;
+    }
+
+    public SeniorityLevel getSeniorityLevel() {
+        return seniorityLevel;
+    }
+    public void setSeniorityLevel(SeniorityLevel seniorityLevel) {
+        this.seniorityLevel = seniorityLevel;
+    }
+
+    private final List<String> subordinates = new ArrayList<>();
 
     public List<String> getSubordinates() {
         return Collections.unmodifiableList(subordinates);
