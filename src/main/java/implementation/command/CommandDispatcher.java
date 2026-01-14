@@ -6,7 +6,9 @@ import implementation.command.commands.development.ViewAssignedTicketsCommand;
 import implementation.command.commands.flow.LostInvestorsCommand;
 import implementation.command.commands.milestone.CreateMilestoneCommand;
 import implementation.command.commands.milestone.ViewMilestonesCommand;
+import implementation.command.commands.ticket.AddCommentCommand;
 import implementation.command.commands.ticket.ReportTicketCommand;
+import implementation.command.commands.ticket.UndoAddCommentCommand;
 import implementation.command.commands.ticket.ViewTicketsCommand;
 import implementation.domain.flow.ProjectContext;
 import implementation.dto.input.CommandInput;
@@ -31,16 +33,27 @@ public class CommandDispatcher {
     }
 
     public CommandResult dispatch(CommandInput input) {
-        return switch (input.getCommand()) {
-            case "reportTicket" -> new ReportTicketCommand(userRepo, ticketService).execute(input);
-            case "viewTickets" -> new ViewTicketsCommand(userRepo, ticketService).execute(input);
-            case "createMilestone" -> new CreateMilestoneCommand(userRepo, milestoneService).execute(input);
-            case "viewMilestones" -> new ViewMilestonesCommand(userRepo, milestoneService).execute(input);
-            case "assignTicket" -> new AssignTicketCommand(userRepo, ticketService).execute(input);
-            case "undoAssignTicket" -> new UndoAssignTicketCommand(userRepo, ticketService).execute(input);
-            case "viewAssignedTickets" -> new ViewAssignedTicketsCommand(userRepo, ticketService).execute(input);
-            case "lostInvestors" -> new LostInvestorsCommand(userRepo, ctx).execute(input);
-            default -> null;
-        };
+        if ("reportTicket".equals(input.getCommand())) {
+            return new ReportTicketCommand(userRepo, ticketService).execute(input);
+        } else if ("viewTickets".equals(input.getCommand())) {
+            return new ViewTicketsCommand(userRepo, ticketService).execute(input);
+        } else if ("createMilestone".equals(input.getCommand())) {
+            return new CreateMilestoneCommand(userRepo, milestoneService).execute(input);
+        } else if ("viewMilestones".equals(input.getCommand())) {
+            return new ViewMilestonesCommand(userRepo, milestoneService).execute(input);
+        } else if ("lostInvestors".equals(input.getCommand())) {
+            return new LostInvestorsCommand(userRepo, ctx).execute(input);
+        } else if ("assignTicket".equals(input.getCommand())) {
+            return new AssignTicketCommand(userRepo, ticketService).execute(input);
+        } else if ("undoAssignTicket".equals(input.getCommand())) {
+            return new UndoAssignTicketCommand(userRepo, ticketService).execute(input);
+        } else if ("viewAssignedTickets".equals(input.getCommand())) {
+            return new ViewAssignedTicketsCommand(userRepo, ticketService).execute(input);
+        } else if ("addComment".equals(input.getCommand())) {
+            return new AddCommentCommand(userRepo, ticketService).execute(input);
+        } else if ("undoAddComment".equals(input.getCommand())) {
+            return new UndoAddCommentCommand(userRepo, ticketService).execute(input);
+        }
+        return null;
     }
 }

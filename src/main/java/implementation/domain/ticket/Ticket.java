@@ -3,6 +3,7 @@ package implementation.domain.ticket;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import implementation.domain.user.ExpertiseArea;
 
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,7 +27,7 @@ public abstract class Ticket {
     private String solvedAt = "";
     private LocalDate closedAt;
 
-    private final List<String> comments = new ArrayList<>();
+    private final List<Comment> comments = new ArrayList<>();
     private final List<Map<String, Object>> actions = new ArrayList<>();
 
     protected Ticket(TicketType type,
@@ -104,7 +105,7 @@ public abstract class Ticket {
         return solvedAt == null ? "" : solvedAt;
     }
 
-    public List<String> getComments() {
+    public List<Comment> getComments() {
         return comments;
     }
 
@@ -148,4 +149,29 @@ public abstract class Ticket {
         a.put("action", "ADDED_TO_MILESTONE");
         actions.add(a);
     }
+
+    public void addComment(String author, String content, String createdAt) {
+        comments.add(new Comment(author, content, createdAt));
+    }
+
+    public boolean undoLastCommentBy(String author) {
+        for (int i = comments.size() - 1; i >= 0; i--) {
+            if (comments.get(i).getAuthor().equals(author)) {
+                comments.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @JsonIgnore
+    public LocalDate getAssignedAtDate() {
+        return assignedAt;
+    }
+
+    @JsonIgnore
+    public boolean isAnonymous() {
+        return reportedBy == null || reportedBy.isEmpty();
+    }
+
 }

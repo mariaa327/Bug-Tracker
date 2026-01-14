@@ -260,4 +260,73 @@ public class TicketService {
             default -> true;
         };
     }
+
+    public String addComment(String username, int ticketId, String comment, String timestamp) {
+        var opt = repo.findById(ticketId);
+        if (opt.isEmpty()) {
+            return null;
+        }
+
+        Ticket t = opt.get();
+
+        if (t.isAnonymous()) {
+            return "Comments are not allowed on anonymous tickets.";
+        }
+
+        if (comment == null || comment.length() < 10) {
+            return "Comment must be at least 10 characters long.";
+        }
+
+        var userOpt = userRepo.findByUsername(username);
+        if (userOpt.isEmpty()) {
+            return "User not found.";
+        }
+
+        Role role = userOpt.get().getRole();
+        if (role != Role.REPORTER && role != Role.DEVELOPER) {
+            return "required role REPORTER/DEVELOPER; user role " + role + ".";
+        }
+
+        if (role == Role.REPORTER && t.getStatus() == TicketStatus.CLOSED) {
+            return "Reporters cannot comment on CLOSED tickets.";
+        }
+
+        if (role == Role.DEVELOPER) {
+            if (!username.equals(t.getAssignedTo())) {
+                return "Ticket " + ticketId +
+                        " is not assigned to the developer " + username + ".";
+            }
+        }
+
+        if (role == Role.REPORTER) {
+            if (!username.equals(t.getReportedBy())) {
+                return "Reporter " + username + " cannot comment on ticket "
+                        + ticketId + ".";
+            }
+        }
+
+        t.addComment(username, comment, timestamp);
+        return null;
+    }
+
+    public String undoAddComment(String username, int ticketId, String timestamp) {
+        var opt = repo.findById(ticketId);
+        if (opt.isEmpty()) {
+            return null;
+        }
+
+        Ticket t = opt.get();
+
+        if (t.isAnonymous()) {
+            return "Comments are not allowed on anonymous tickets.";
+        }
+
+        boolean removed = t.undoLastCommentBy(username);
+        if (!removed) {
+            return null;
+        }
+
+        return null;
+    }
+
 }

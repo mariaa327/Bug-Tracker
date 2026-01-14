@@ -13,7 +13,15 @@ public class Comment {
         this.createdAt = createdAt;
     }
 
-    public String getAuthor() { return author; }
-    public String getContent() { return content; }
-    public String getCreatedAt() { return createdAt; }
+    public String getAuthor() {
+        return author;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
 }
