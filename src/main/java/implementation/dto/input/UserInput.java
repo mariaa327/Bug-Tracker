@@ -14,9 +14,10 @@ public class UserInput {
 
     private List<String> subordinates;
 
-    @JsonAlias({"expertiseArea", "expertise", "expertise_area"})
     private String expertiseArea;
 
-    @JsonAlias({"seniorityLevel", "seniority", "seniority_level", "level"})
-    private String seniorityLevel;
+    private String seniority;
+
+    private Double performanceScore;
+    private String hireDate;
 }

@@ -1,10 +1,12 @@
 package implementation.command;
 
+import implementation.command.commands.advanced.ViewNotificationsCommand;
 import implementation.command.commands.ticket.ReportTicketCommand;
 import implementation.command.commands.ticket.ViewTicketsCommand;
 import implementation.domain.flow.ProjectContext;
 import implementation.dto.input.CommandInput;
 import implementation.repository.impl.JsonUserRepository;
+import implementation.service.NotificationService;
 import implementation.service.TicketService;
 import implementation.command.commands.milestone.CreateMilestoneCommand;
 import implementation.command.commands.milestone.ViewMilestonesCommand;
@@ -23,20 +25,23 @@ import implementation.command.commands.ticket.UndoAddCommentCommand;
 import implementation.command.commands.development.ChangeStatusCommand;
 import implementation.command.commands.development.ViewTicketHistoryCommand;
 import implementation.command.commands.development.UndoChangeStatusCommand;
+import implementation.command.commands.advanced.SearchCommand;
 
 public class CommandDispatcher {
     private final JsonUserRepository userRepo;
     private final TicketService ticketService;
     private final MilestoneService milestoneService;
     private final ProjectContext ctx;
+    private final NotificationService notificationService;
 
     public CommandDispatcher(JsonUserRepository userRepo, TicketService ticketService,
                              MilestoneService milestoneService,
-                             ProjectContext ctx) {
+                             ProjectContext ctx, NotificationService notificationService) {
         this.userRepo = userRepo;
         this.ticketService = ticketService;
         this.milestoneService = milestoneService;
         this.ctx = ctx;
+        this.notificationService = notificationService;
     }
 
     public CommandResult dispatch(CommandInput input) {
@@ -45,7 +50,8 @@ public class CommandDispatcher {
         } else if ("viewTickets".equals(input.getCommand())) {
             return new ViewTicketsCommand(userRepo, ticketService).execute(input);
         } else if ("createMilestone".equals(input.getCommand())) {
-            return new CreateMilestoneCommand(userRepo, milestoneService).execute(input);
+            return new CreateMilestoneCommand(userRepo, milestoneService,
+                    notificationService).execute(input);
         } else if ("viewMilestones".equals(input.getCommand())) {
             return new ViewMilestonesCommand(userRepo, milestoneService).execute(input);
         } else if ("lostInvestors".equals(input.getCommand())) {
@@ -66,6 +72,10 @@ public class CommandDispatcher {
             return new ViewTicketHistoryCommand(userRepo, ticketService).execute(input);
         } else if ("undoChangeStatus".equals(input.getCommand())) {
             return new UndoChangeStatusCommand(userRepo, ticketService).execute(input);
+        } else if ("search".equals(input.getCommand())) {
+            return new SearchCommand(userRepo, ticketService, milestoneService).execute(input);
+        } else if ("viewNotifications".equals(input.getCommand())) {
+            return new ViewNotificationsCommand(userRepo, notificationService).execute(input);
         }
 
         return null;

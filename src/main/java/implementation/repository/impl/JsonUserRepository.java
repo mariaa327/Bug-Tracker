@@ -5,6 +5,7 @@ import implementation.domain.user.*;
 import implementation.dto.input.UserInput;
 
 import java.io.File;
+import java.time.LocalDate;
 import java.util.*;
 
 public class JsonUserRepository {
@@ -13,13 +14,26 @@ public class JsonUserRepository {
     public JsonUserRepository(String path, ObjectMapper mapper) {
         try {
             UserInput[] usersArray = mapper.readValue(new File(path), UserInput[].class);
-            List<UserInput> inputList = Arrays.asList(usersArray);
+            if (usersArray == null) {
+                return;
+            }
 
-            for (UserInput input : inputList) {
-                String username = input.getUsername();
-                String roleStr = input.getRole();
+            for (UserInput ui : usersArray) {
+                if (ui == null) continue;
 
-                Role role = Role.valueOf(roleStr);
+                String username = safeTrim(ui.getUsername());
+                String roleStr = safeTrim(ui.getRole());
+
+                if (username.isEmpty() || roleStr.isEmpty()) {
+                    continue;
+                }
+
+                Role role;
+                try {
+                    role = Role.valueOf(roleStr);
+                } catch (IllegalArgumentException ex) {
+                    continue;
+                }
 
                 User user = switch (role) {
                     case MANAGER -> new Manager(username);
@@ -29,11 +43,36 @@ public class JsonUserRepository {
 
                 user.setRole(role);
 
-                if (input.getExpertiseArea() != null && !input.getExpertiseArea().isEmpty()) {
-                    user.setExpertiseArea(ExpertiseArea.valueOf(input.getExpertiseArea()));
+                String exp = safeTrim(ui.getExpertiseArea());
+                if (!exp.isEmpty()) {
+                    try {
+                        user.setExpertiseArea(ExpertiseArea.valueOf(exp));
+                    } catch (IllegalArgumentException ignored) {
+                    }
                 }
-                if (input.getSeniorityLevel() != null && !input.getSeniorityLevel().isEmpty()) {
-                    user.setSeniorityLevel(SeniorityLevel.valueOf(input.getSeniorityLevel()));
+
+                String sen = safeTrim(ui.getSeniority());
+                if (!sen.isEmpty()) {
+                    try {
+                        user.setSeniorityLevel(SeniorityLevel.valueOf(sen));
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+
+                try {
+                    Double ps = ui.getPerformanceScore();
+                    if (ps != null) {
+                        user.setPerformanceScore(ps);
+                    }
+                } catch (NoSuchMethodError | Exception ignored) {
+                }
+
+                try {
+                    String hd = safeTrim(ui.getHireDate());
+                    if (!hd.isEmpty()) {
+                        user.setHireDate(LocalDate.parse(hd));
+                    }
+                } catch (NoSuchMethodError | Exception ignored) {
                 }
 
                 users.put(username, user);
@@ -45,5 +84,13 @@ public class JsonUserRepository {
 
     public Optional<User> findByUsername(String username) {
         return Optional.ofNullable(users.get(username));
+    }
+
+    public Collection<User> getAll() {
+        return users.values();
+    }
+
+    private static String safeTrim(String s) {
+        return s == null ? "" : s.trim();
     }
 }

@@ -426,4 +426,8 @@ public class TicketService {
         }
         return false;
     }
+
+    public List<Ticket> getAllTickets() {
+        return repo.getAll();
+    }
 }

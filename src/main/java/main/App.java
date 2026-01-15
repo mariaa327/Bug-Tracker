@@ -15,6 +15,7 @@ import implementation.service.TicketService;
 import implementation.service.FlowService;
 import implementation.repository.impl.InMemoryMilestoneRepository;
 import implementation.service.MilestoneService;
+import implementation.service.NotificationService;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,6 +63,8 @@ public class App {
 
             InMemoryTicketRepository ticketRepo = new InMemoryTicketRepository();
             InMemoryMilestoneRepository milestoneRepo = new InMemoryMilestoneRepository();
+            NotificationService notificationService =
+                    new NotificationService(milestoneRepo, ticketRepo);
 
             ProjectContext ctx = new ProjectContext();
 
@@ -79,7 +82,8 @@ public class App {
             TicketService ticketService = new TicketService(ticketRepo, flowService, userRepo, milestoneRepo);
             MilestoneService milestoneService = new MilestoneService(milestoneRepo, ticketRepo);
 
-            CommandDispatcher dispatcher = new CommandDispatcher(userRepo, ticketService, milestoneService, ctx);
+            CommandDispatcher dispatcher = new CommandDispatcher(userRepo,
+                    ticketService, milestoneService, ctx, notificationService);
 
 
             /*

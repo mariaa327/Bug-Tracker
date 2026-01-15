@@ -21,6 +21,7 @@ public final class CommandInput {
     private Integer ticketID;
 
     private ParamsReportTicket params;
+    private SearchFilters filters;
 
     private String comment;
 }

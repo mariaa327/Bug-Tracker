@@ -7,14 +7,20 @@ import implementation.domain.user.User;
 import implementation.dto.input.CommandInput;
 import implementation.repository.impl.JsonUserRepository;
 import implementation.service.MilestoneService;
+import implementation.service.NotificationService;
+import java.time.LocalDate;
 
 public class CreateMilestoneCommand implements Command {
     private final JsonUserRepository userRepo;
     private final MilestoneService milestoneService;
+    private final NotificationService notificationService;
 
-    public CreateMilestoneCommand(JsonUserRepository userRepo, MilestoneService milestoneService) {
+    public CreateMilestoneCommand(JsonUserRepository userRepo,
+                                  MilestoneService milestoneService,
+                                  NotificationService notificationService) {
         this.userRepo = userRepo;
         this.milestoneService = milestoneService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -32,6 +38,12 @@ public class CreateMilestoneCommand implements Command {
         String err = milestoneService.createMilestone(input);
         if (err != null)
             return CommandResult.error(input, err);
+
+        notificationService.notifyNewMilestone(
+                input.getAssignedDevs(),
+                input.getName(),
+                LocalDate.parse(input.getDueDate())
+        );
 
         return null;
     }

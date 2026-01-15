@@ -11,6 +11,9 @@ public abstract class User {
     private ExpertiseArea expertiseArea;
     private SeniorityLevel seniorityLevel;
 
+    private double performanceScore = 0.0;
+    private LocalDate hireDate;
+
     public User() {}
 
     protected User(String username, Role role) {
@@ -56,4 +59,19 @@ public abstract class User {
         subordinates.clear();
         if (subs != null) subordinates.addAll(subs);
     }
+
+    public double getPerformanceScore() {
+        return performanceScore;
+    }
+    public void setPerformanceScore(double performanceScore) {
+        this.performanceScore = performanceScore;
+    }
+
+    public LocalDate getHireDate() {
+        return hireDate;
+    }
+    public void setHireDate(LocalDate hireDate) {
+        this.hireDate = hireDate;
+    }
+
 }

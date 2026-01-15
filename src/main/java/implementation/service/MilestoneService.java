@@ -39,7 +39,6 @@ public class MilestoneService {
 
         milestoneRepo.add(m);
 
-        // pentru viewTicketHistory (Test 8): ADDED_TO_MILESTONE
         for (Integer ticketId : input.getTickets()) {
             ticketRepo.findById(ticketId).ifPresent(t ->
                     t.logAddedToMilestone(input.getName(), input.getUsername(), input.getTimestamp())
@@ -68,7 +67,6 @@ public class MilestoneService {
             boolean blocked = milestoneRepo.isMilestoneBlocked(m.getName());
             map.put("isBlocked", blocked);
 
-            // Tickets split
             List<Integer> openTickets = new ArrayList<>();
             List<Integer> closedTickets = new ArrayList<>();
             splitTicketsByStatus(m, openTickets, closedTickets);
@@ -82,15 +80,11 @@ public class MilestoneService {
             boolean completed = (total > 0 && closed == total);
             map.put("status", completed ? "COMPLETED" : "ACTIVE");
 
-            // Alegem data de referinta pentru overdue:
-            // - milestone ACTIVE -> now (timestamp-ul comenzii)
-            // - milestone COMPLETED -> ziua cand s-a inchis ultimul ticket (max closedAt)
             LocalDate referenceDate = completed ? completionDateOrNow(m, now) : now;
 
             long diff = ChronoUnit.DAYS.between(referenceDate, m.getDueDate());
             putDueFieldsInclusive(map, diff);
 
-            // completionPercentage ca fractie 0..1, rotunjit la 2 zecimale
             map.put("completionPercentage", completionRatio(closed, total));
 
             map.put("repartition", buildRepartition(m));
@@ -101,10 +95,6 @@ public class MilestoneService {
         return output;
     }
 
-    /**
-     * Pentru milestone COMPLETED: data la care s-a inchis ultimul ticket (max(closedAt)).
-     * Daca, din orice motiv, nu avem closedAt pe vreun ticket, cadem pe now ca fallback safe.
-     */
     private LocalDate completionDateOrNow(Milestone m, LocalDate now) {
         LocalDate completionDate = null;
 
@@ -121,11 +111,6 @@ public class MilestoneService {
         return (completionDate != null) ? completionDate : now;
     }
 
-    /**
-     * Regula "inclusiva" (cum a cerut checker-ul la Test 8):
-     * - daca nu e overdue: daysUntilDue = diff + 1, overdueBy = 0
-     * - daca e overdue: daysUntilDue = 0, overdueBy = abs(diff) + 1
-     */
     private static void putDueFieldsInclusive(Map<String, Object> map, long diffDays) {
         long daysUntilDue = diffDays >= 0 ? diffDays + 1 : 0;
         long overdueBy = diffDays < 0 ? Math.abs(diffDays) + 1 : 0;
@@ -175,5 +160,9 @@ public class MilestoneService {
 
     private static double round2(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    public boolean isDevAssignedToTicketMilestone(int ticketId, String devUsername) {
+        return milestoneRepo.isDevAssignedToTicketMilestone(ticketId, devUsername);
     }
 }
