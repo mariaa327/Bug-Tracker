@@ -3,13 +3,14 @@ package implementation.service;
 import implementation.domain.flow.ProjectContext;
 import implementation.domain.milestone.Milestone;
 import implementation.domain.ticket.*;
-import implementation.domain.user.ExpertiseArea;
-import implementation.domain.user.Role;
-import implementation.domain.user.SeniorityLevel;
-import implementation.domain.user.User;
 import implementation.repository.impl.InMemoryMilestoneRepository;
 import implementation.repository.impl.InMemoryTicketRepository;
 import implementation.repository.impl.JsonUserRepository;
+
+import implementation.domain.user.ExpertiseArea;
+import implementation.domain.user.SeniorityLevel;
+import implementation.domain.user.User;
+import implementation.domain.user.Role;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -20,12 +21,9 @@ public class TicketService {
     private final FlowService flowService;
     private final JsonUserRepository userRepo;
     private final InMemoryMilestoneRepository milestoneRepo;
-
     private final Map<Integer, LocalDate> lastEscalatedOn = new HashMap<>();
 
-    public TicketService(InMemoryTicketRepository repo,
-                         FlowService flowService,
-                         JsonUserRepository userRepo,
+    public TicketService(InMemoryTicketRepository repo, FlowService flowService, JsonUserRepository userRepo,
                          InMemoryMilestoneRepository milestoneRepo) {
         this.repo = repo;
         this.flowService = flowService;
@@ -33,14 +31,87 @@ public class TicketService {
         this.milestoneRepo = milestoneRepo;
     }
 
+    public List<Ticket> viewTicketsAsManager(String currentTimestamp) {
+        LocalDate now = LocalDate.parse(currentTimestamp);
+        List<Ticket> tickets = repo.getAll();
+        applyMilestoneEscalation(tickets, now);
+
+        tickets.sort(Comparator.comparing(Ticket::getCreatedAt).thenComparingInt(Ticket::getId));
+        return tickets;
+    }
+
+    public List<Ticket> viewTicketsAsReporter(String username, String currentTimestamp) {
+        LocalDate now = LocalDate.parse(currentTimestamp);
+
+        List<Ticket> tickets = repo.getAll().stream()
+                .filter(t -> t.getReportedBy() != null && t.getReportedBy().equals(username))
+                .collect(Collectors.toList());
+
+        applyMilestoneEscalation(tickets, now);
+
+        tickets.sort(Comparator.comparing(Ticket::getCreatedAt).thenComparingInt(Ticket::getId));
+
+        return tickets;
+    }
+
+    private void applyMilestoneEscalation(List<Ticket> tickets, LocalDate now) {
+        ProjectContext ctx = flowService.getContext();
+        if (ctx.getStartDate() == null) {
+            return;
+        }
+
+        for (Ticket t : tickets) {
+            if (t.getStatus() != TicketStatus.OPEN) {
+                continue;
+            }
+
+            Optional<Milestone> mOpt = milestoneRepo.findByTicketId(t.getId());
+            if (mOpt.isEmpty()) {
+                continue;
+            }
+
+            Milestone m = mOpt.get();
+            if (milestoneRepo.isMilestoneBlocked(m.getName())) {
+                continue;
+            }
+
+            if (now.equals(m.getDueDate().minusDays(1))) {
+                if (t.getBusinessPriority() != BusinessPriority.CRITICAL) {
+                    t.setBusinessPriority(BusinessPriority.CRITICAL);
+                }
+                lastEscalatedOn.put(t.getId(), now);
+                continue;
+            }
+
+            LocalDate last = lastEscalatedOn.get(t.getId());
+            if (last == null) {
+                last = m.getCreatedAt();
+            }
+
+            LocalDate cursor = last.plusDays(1);
+            while (!cursor.isAfter(now)) {
+                long daysPassed = cursor.toEpochDay() - m.getCreatedAt().toEpochDay();
+                if (daysPassed > 0 && daysPassed % 3 == 0) {
+                    t.setBusinessPriority(t.getBusinessPriority().bump());
+                }
+                cursor = cursor.plusDays(1);
+            }
+
+            lastEscalatedOn.put(t.getId(), now);
+        }
+    }
+
     public String reportTicket(String timestamp, implementation.dto.input.ParamsReportTicket params) {
         String phaseError = flowService.validateTestingPhase(timestamp);
-        if (phaseError != null) return phaseError;
+        if (phaseError != null) {
+            return phaseError;
+        }
 
         TicketType type = TicketType.valueOf(params.getType());
         BusinessPriority priority = BusinessPriority.valueOf(params.getBusinessPriority());
 
         String reportedBy = params.getReportedBy();
+
         if (reportedBy == null || reportedBy.isEmpty()) {
             if (type == TicketType.BUG) {
                 priority = BusinessPriority.LOW;
@@ -64,90 +135,6 @@ public class TicketService {
         return null;
     }
 
-    public List<Ticket> viewTicketsAsManager(String currentTimestamp) {
-        LocalDate now = LocalDate.parse(currentTimestamp);
-        List<Ticket> tickets = repo.getAll();
-        applyMilestoneEscalation(tickets, now);
-        tickets.sort(Comparator.comparing(Ticket::getCreatedAt).thenComparingInt(Ticket::getId));
-        return tickets;
-    }
-
-    public List<Ticket> viewTicketsAsReporter(String username, String currentTimestamp) {
-        LocalDate now = LocalDate.parse(currentTimestamp);
-
-        List<Ticket> tickets = repo.getAll().stream()
-                .filter(t -> t.getReportedBy() != null && t.getReportedBy().equals(username))
-                .collect(Collectors.toList());
-
-        applyMilestoneEscalation(tickets, now);
-
-        tickets.sort(Comparator.comparing(Ticket::getCreatedAt).thenComparingInt(Ticket::getId));
-        return tickets;
-    }
-
-    public List<Ticket> viewTicketsAsDeveloper(String devUsername, String currentTimestamp) {
-        LocalDate now = LocalDate.parse(currentTimestamp);
-
-        List<Ticket> tickets = repo.getAll().stream()
-                .filter(t -> t.getStatus() == TicketStatus.OPEN)
-                .filter(t -> t.getAssignedTo() == null || t.getAssignedTo().isEmpty())
-                .filter(t -> milestoneRepo.isDevAssignedToTicketMilestone(t.getId(), devUsername))
-                .collect(Collectors.toList());
-
-        applyMilestoneEscalation(tickets, now);
-
-        tickets.sort(Comparator.comparing(Ticket::getCreatedAt).thenComparingInt(Ticket::getId));
-        return tickets;
-    }
-
-    /**
-     * IMPORTANT pentru test 3/5:
-     * - cu 1 zi înainte de dueDate => CRITICAL
-     * - la fiecare 3 zile din momentul creării milestone-ului => bump priority
-     * - dacă milestone e blocat => nu escaladezi
-     */
-    private void applyMilestoneEscalation(List<Ticket> tickets, LocalDate now) {
-        ProjectContext ctx = flowService.getContext();
-        if (ctx == null || ctx.getStartDate() == null) return;
-
-        for (Ticket t : tickets) {
-            if (t.getStatus() != TicketStatus.OPEN) continue;
-
-            Optional<Milestone> mOpt = milestoneRepo.findByTicketId(t.getId());
-            if (mOpt.isEmpty()) continue;
-
-            Milestone m = mOpt.get();
-            if (milestoneRepo.isMilestoneBlocked(m.getName())) continue;
-
-            if (now.equals(m.getDueDate().minusDays(1))) {
-                if (t.getBusinessPriority() != BusinessPriority.CRITICAL) {
-                    t.setBusinessPriority(BusinessPriority.CRITICAL);
-                }
-                lastEscalatedOn.put(t.getId(), now);
-                continue;
-            }
-
-            LocalDate last = lastEscalatedOn.get(t.getId());
-            if (last == null) last = m.getCreatedAt();
-
-            LocalDate cursor = last.plusDays(1);
-            while (!cursor.isAfter(now)) {
-                long daysPassed = cursor.toEpochDay() - m.getCreatedAt().toEpochDay();
-                if (daysPassed > 0 && daysPassed % 3 == 0) {
-                    t.setBusinessPriority(t.getBusinessPriority().bump());
-                }
-                cursor = cursor.plusDays(1);
-            }
-
-            lastEscalatedOn.put(t.getId(), now);
-        }
-    }
-
-    /**
-     * FIX pentru test 5:
-     * ordinea verificărilor trebuie să producă EXACT mesajele așteptate,
-     * și să NU asigneze când ar trebui să dea error.
-     */
     public String assignTicket(String devUsername, String timestamp, int ticketId) {
         var opt = repo.findById(ticketId);
         if (opt.isEmpty()) {
@@ -197,9 +184,39 @@ public class TicketService {
         return null;
     }
 
+    public List<Ticket> viewAssignedTickets(String devUsername,
+                                            String timestamp) {
+        LocalDate now = LocalDate.parse(timestamp);
+        List<Ticket> assigned = repo.getAll().stream()
+                .filter(t -> devUsername.equals(t.getAssignedTo()))
+                .collect(java.util.stream.Collectors.toList());
+
+        assigned.sort(Comparator
+                .comparingInt((Ticket t) -> t.getBusinessPriority().score()).reversed()
+                .thenComparing(Ticket::getId));
+        return assigned;
+    }
+
+    public List<Ticket> viewTicketsAsDeveloper(String devUsername, String currentTimestamp) {
+        LocalDate now = LocalDate.parse(currentTimestamp);
+
+        List<Ticket> tickets = repo.getAll().stream()
+                .filter(t -> t.getStatus() == TicketStatus.OPEN)
+                .filter(t -> t.getAssignedTo() == null || t.getAssignedTo().isEmpty())
+                .filter(t -> milestoneRepo.isDevAssignedToTicketMilestone(t.getId(), devUsername))
+                .collect(Collectors.toList());
+
+        applyMilestoneEscalation(tickets, now);
+
+        tickets.sort(Comparator.comparing(Ticket::getCreatedAt).thenComparingInt(Ticket::getId));
+        return tickets;
+    }
+
     public String undoAssignTicket(String devUsername, int ticketId, String timestamp) {
-        Optional<Ticket> opt = repo.findById(ticketId);
-        if (opt.isEmpty()) return "Ticket not found.";
+        var opt = repo.findById(ticketId);
+        if (opt.isEmpty()) {
+            return "Ticket not found.";
+        }
 
         Ticket t = opt.get();
 
@@ -209,24 +226,26 @@ public class TicketService {
         }
 
         t.unassign();
+        t.setStatus(TicketStatus.OPEN);
+
+        t.logDeAssigned(devUsername, timestamp);
+
         return null;
     }
 
-    public List<Ticket> viewAssignedTickets(String devUsername, String timestamp) {
-        List<Ticket> assigned = repo.getAll().stream()
-                .filter(t -> devUsername.equals(t.getAssignedTo()))
-                .collect(Collectors.toList());
 
-        assigned.sort(Comparator
-                .comparingInt((Ticket x) -> x.getBusinessPriority().score()).reversed()
-                .thenComparing(Ticket::getId));
+    private boolean canHandle(ExpertiseArea dev, ExpertiseArea req) {
+        if (dev == null || req == null) return false;
+        if (dev == ExpertiseArea.FULLSTACK) return true;
 
-        return assigned;
-    }
-
-    private boolean canHandle(ExpertiseArea dev, ExpertiseArea required) {
-        if (dev == null) return false;
-        return dev.canHandle(required);
+        return switch (req) {
+            case DB -> dev == ExpertiseArea.DB || dev == ExpertiseArea.BACKEND;
+            case BACKEND -> dev == ExpertiseArea.BACKEND || dev == ExpertiseArea.DEVOPS;
+            case FRONTEND -> dev == ExpertiseArea.FRONTEND || dev == ExpertiseArea.DESIGN;
+            case DEVOPS -> dev == ExpertiseArea.DEVOPS;
+            case DESIGN -> dev == ExpertiseArea.DESIGN;
+            case FULLSTACK -> dev == ExpertiseArea.FULLSTACK;
+        };
     }
 
     private String requiredExpertiseList(ExpertiseArea req) {
@@ -262,7 +281,7 @@ public class TicketService {
     }
 
     public String addComment(String username, int ticketId, String comment, String timestamp) {
-        var opt = repo.findById(ticketId);
+        Optional<Ticket> opt = repo.findById(ticketId);
         if (opt.isEmpty()) {
             return null;
         }
@@ -277,14 +296,15 @@ public class TicketService {
             return "Comment must be at least 10 characters long.";
         }
 
-        var userOpt = userRepo.findByUsername(username);
+        Optional<User> userOpt = userRepo.findByUsername(username);
         if (userOpt.isEmpty()) {
             return "User not found.";
         }
 
         Role role = userOpt.get().getRole();
+
         if (role != Role.REPORTER && role != Role.DEVELOPER) {
-            return "required role REPORTER/DEVELOPER; user role " + role + ".";
+            return "User not allowed.";
         }
 
         if (role == Role.REPORTER && t.getStatus() == TicketStatus.CLOSED) {
@@ -293,15 +313,13 @@ public class TicketService {
 
         if (role == Role.DEVELOPER) {
             if (!username.equals(t.getAssignedTo())) {
-                return "Ticket " + ticketId +
-                        " is not assigned to the developer " + username + ".";
+                return "Ticket " + ticketId + " is not assigned to the developer " + username + ".";
             }
         }
 
         if (role == Role.REPORTER) {
             if (!username.equals(t.getReportedBy())) {
-                return "Reporter " + username + " cannot comment on ticket "
-                        + ticketId + ".";
+                return "Reporter " + username + " cannot comment on ticket " + ticketId + ".";
             }
         }
 
@@ -310,7 +328,7 @@ public class TicketService {
     }
 
     public String undoAddComment(String username, int ticketId, String timestamp) {
-        var opt = repo.findById(ticketId);
+        Optional<Ticket> opt = repo.findById(ticketId);
         if (opt.isEmpty()) {
             return null;
         }
@@ -328,5 +346,4 @@ public class TicketService {
 
         return null;
     }
-
 }

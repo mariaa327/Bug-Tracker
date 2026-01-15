@@ -63,9 +63,15 @@ public class App {
             InMemoryTicketRepository ticketRepo = new InMemoryTicketRepository();
             InMemoryMilestoneRepository milestoneRepo = new InMemoryMilestoneRepository();
 
-            ProjectContext ctx = ProjectContext.getInstance();
+            ProjectContext ctx = new ProjectContext();
+
             if (!commands.isEmpty()) {
-                ctx.setStartDateIfNull(commands.get(0).getTimestamp());
+                String minTs = commands.stream()
+                        .map(CommandInput::getTimestamp)
+                        .min(String::compareTo)
+                        .orElse(commands.get(0).getTimestamp());
+
+                ctx.setStartDateIfNull(minTs);
             }
             ctx.setInvestorsLost(false);
 

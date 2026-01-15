@@ -3,7 +3,6 @@ package implementation.domain.ticket;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import implementation.domain.user.ExpertiseArea;
 
-
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,10 +24,10 @@ public abstract class Ticket {
     private String assignedTo = "";
     private LocalDate assignedAt = null;
     private String solvedAt = "";
-    private LocalDate closedAt;
 
     private final List<Comment> comments = new ArrayList<>();
     private final List<Map<String, Object>> actions = new ArrayList<>();
+
 
     protected Ticket(TicketType type,
                      String title,
@@ -126,14 +125,25 @@ public abstract class Ticket {
         return assignedTo != null && !assignedTo.isEmpty();
     }
 
-    @JsonIgnore
-    public LocalDate getClosedAt() {
-        return closedAt;
+    public void addComment(String author, String content, String createdAt) {
+        comments.add(new Comment(author, content, createdAt));
     }
 
     @JsonIgnore
-    public void setClosedAt(LocalDate closedAt) {
-        this.closedAt = closedAt;
+    public boolean isAnonymous() {
+        return reportedBy == null || reportedBy.isEmpty();
+    }
+
+    public boolean undoLastCommentBy(String author) {
+        if (author == null) return false;
+
+        for (int i = comments.size() - 1; i >= 0; i--) {
+            if (author.equals(comments.get(i).getAuthor())) {
+                comments.remove(i);
+                return true;
+            }
+        }
+        return false;
     }
 
     @JsonIgnore
@@ -150,28 +160,14 @@ public abstract class Ticket {
         actions.add(a);
     }
 
-    public void addComment(String author, String content, String createdAt) {
-        comments.add(new Comment(author, content, createdAt));
+    public void logDeAssigned(String by, String timestamp) {
+        Map<String, Object> a = new LinkedHashMap<>();
+        a.put("by", by);
+        a.put("timestamp", timestamp);
+        a.put("action", "DE-ASSIGNED");
+        actions.add(a);
     }
 
-    public boolean undoLastCommentBy(String author) {
-        for (int i = comments.size() - 1; i >= 0; i--) {
-            if (comments.get(i).getAuthor().equals(author)) {
-                comments.remove(i);
-                return true;
-            }
-        }
-        return false;
-    }
 
-    @JsonIgnore
-    public LocalDate getAssignedAtDate() {
-        return assignedAt;
-    }
-
-    @JsonIgnore
-    public boolean isAnonymous() {
-        return reportedBy == null || reportedBy.isEmpty();
-    }
 
 }

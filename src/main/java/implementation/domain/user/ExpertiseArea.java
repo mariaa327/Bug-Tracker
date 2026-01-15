@@ -9,7 +9,8 @@ public enum ExpertiseArea {
     FULLSTACK;
 
     public boolean canHandle(ExpertiseArea required) {
-        if (required == null) return true;
+        if (required == null)
+            return true;
 
         return switch (this) {
             case FULLSTACK -> true;
