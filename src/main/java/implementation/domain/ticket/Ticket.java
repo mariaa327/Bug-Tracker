@@ -5,8 +5,8 @@ import implementation.domain.user.ExpertiseArea;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public abstract class Ticket {
@@ -24,10 +24,10 @@ public abstract class Ticket {
     private String assignedTo = "";
     private LocalDate assignedAt = null;
     private String solvedAt = "";
+    private LocalDate closedAt;
 
     private final List<Comment> comments = new ArrayList<>();
     private final List<Map<String, Object>> actions = new ArrayList<>();
-
 
     protected Ticket(TicketType type,
                      String title,
@@ -160,6 +160,24 @@ public abstract class Ticket {
         actions.add(a);
     }
 
+    public void logAssigned(String by, String timestamp) {
+        Map<String, Object> a = new LinkedHashMap<>();
+        a.put("by", by);
+        a.put("timestamp", timestamp);
+        a.put("action", "ASSIGNED");
+        actions.add(a);
+    }
+
+    public void logStatusChanged(TicketStatus from, TicketStatus to, String by, String timestamp) {
+        Map<String, Object> a = new LinkedHashMap<>();
+        a.put("from", from.name());
+        a.put("to", to.name());
+        a.put("by", by);
+        a.put("timestamp", timestamp);
+        a.put("action", "STATUS_CHANGED");
+        actions.add(a);
+    }
+
     public void logDeAssigned(String by, String timestamp) {
         Map<String, Object> a = new LinkedHashMap<>();
         a.put("by", by);
@@ -169,5 +187,13 @@ public abstract class Ticket {
     }
 
 
+    @JsonIgnore
+    public LocalDate getClosedAt() {
+        return closedAt;
+    }
 
+    @JsonIgnore
+    public void setClosedAt(LocalDate closedAt) {
+        this.closedAt = closedAt;
+    }
 }

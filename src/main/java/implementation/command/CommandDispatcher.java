@@ -20,6 +20,9 @@ import implementation.command.commands.development.UndoAssignTicketCommand;
 import implementation.command.commands.development.ViewAssignedTicketsCommand;
 import implementation.command.commands.ticket.AddCommentCommand;
 import implementation.command.commands.ticket.UndoAddCommentCommand;
+import implementation.command.commands.development.ChangeStatusCommand;
+import implementation.command.commands.development.ViewTicketHistoryCommand;
+import implementation.command.commands.development.UndoChangeStatusCommand;
 
 public class CommandDispatcher {
     private final JsonUserRepository userRepo;
@@ -57,7 +60,14 @@ public class CommandDispatcher {
             return new AddCommentCommand(userRepo, ticketService).execute(input);
         } else if ("undoAddComment".equals(input.getCommand())) {
             return new UndoAddCommentCommand(userRepo, ticketService).execute(input);
+        } else if ("changeStatus".equals(input.getCommand())) {
+            return new ChangeStatusCommand(userRepo, ticketService).execute(input);
+        } else if ("viewTicketHistory".equals(input.getCommand())) {
+            return new ViewTicketHistoryCommand(userRepo, ticketService).execute(input);
+        } else if ("undoChangeStatus".equals(input.getCommand())) {
+            return new UndoChangeStatusCommand(userRepo, ticketService).execute(input);
         }
+
         return null;
     }
 }

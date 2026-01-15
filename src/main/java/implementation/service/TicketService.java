@@ -120,6 +120,8 @@ public class TicketService {
             }
         }
 
+
+
         LocalDate creationDate = LocalDate.parse(timestamp);
 
         ExpertiseArea exp = ExpertiseArea.valueOf(params.getExpertiseArea());
@@ -180,7 +182,12 @@ public class TicketService {
                     + "; Current: " + dev.getSeniorityLevel() + ".";
         }
 
+        TicketStatus before = t.getStatus();
         t.assignTo(devUsername, LocalDate.parse(timestamp));
+
+        t.logAssigned(devUsername, timestamp);
+        t.logStatusChanged(before, t.getStatus(), devUsername, timestamp);
+
         return null;
     }
 
@@ -232,7 +239,6 @@ public class TicketService {
 
         return null;
     }
-
 
     private boolean canHandle(ExpertiseArea dev, ExpertiseArea req) {
         if (dev == null || req == null) return false;
@@ -345,5 +351,79 @@ public class TicketService {
         }
 
         return null;
+    }
+
+    public String changeStatus(String devUsername, String timestamp, int ticketId) {
+        var opt = repo.findById(ticketId);
+        if (opt.isEmpty()) {
+            return "Ticket not found.";
+        }
+
+        Ticket t = opt.get();
+
+        if (t.getAssignedTo() == null || t.getAssignedTo().isEmpty()
+                || !devUsername.equals(t.getAssignedTo())) {
+            return "Ticket " + ticketId + " is not assigned to developer " + devUsername + ".";
+        }
+
+        TicketStatus from = t.getStatus();
+        TicketStatus to = from.next();
+
+        if (from != to) {
+            t.setStatus(to);
+            t.logStatusChanged(from, to, devUsername, timestamp);
+        }
+
+        if (to == TicketStatus.CLOSED) {
+            t.setClosedAt(LocalDate.parse(timestamp));
+        }
+
+        return null;
+    }
+
+    public String undoChangeStatus(String devUsername, String timestamp, int ticketId) {
+        var opt = repo.findById(ticketId);
+        if (opt.isEmpty()) {
+            return "Ticket not found.";
+        }
+
+        Ticket t = opt.get();
+
+        if (t.getAssignedTo() == null || t.getAssignedTo().isEmpty()
+                || !devUsername.equals(t.getAssignedTo())) {
+            return "Ticket " + ticketId + " is not assigned to developer " + devUsername + ".";
+        }
+
+        TicketStatus from = t.getStatus();
+        TicketStatus to = from.prev();
+
+        if (from != to) {
+            t.setStatus(to);
+            t.logStatusChanged(from, to, devUsername, timestamp);
+        }
+
+        if (from == TicketStatus.CLOSED && to != TicketStatus.CLOSED) {
+            t.setClosedAt(null);
+        }
+
+        return null;
+    }
+
+    public List<Ticket> viewTicketHistoryTickets(String devUsername) {
+        return repo.getAll().stream()
+                .filter(t -> wasEverAssignedTo(t, devUsername))
+                .sorted(Comparator.comparingInt(Ticket::getId))
+                .toList();
+    }
+
+    private boolean wasEverAssignedTo(Ticket t, String devUsername) {
+        for (var a : t.getActions()) {
+            Object action = a.get("action");
+            Object by = a.get("by");
+            if ("ASSIGNED".equals(action) && devUsername.equals(by)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
