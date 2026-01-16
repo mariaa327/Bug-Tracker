@@ -75,6 +75,11 @@ public class JsonUserRepository {
                 } catch (NoSuchMethodError | Exception ignored) {
                 }
 
+                try {
+                    user.setSubordinates(ui.getSubordinates());
+                } catch (Exception ignored) {
+                }
+
                 users.put(username, user);
             }
         } catch (Exception e) {

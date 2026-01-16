@@ -14,9 +14,11 @@ public abstract class User {
     private double performanceScore = 0.0;
     private LocalDate hireDate;
 
+    private List<String> subordinates = new ArrayList<>();
+
     public User() {}
 
-    protected User(String username, Role role) {
+    protected User(String username,Role role){
         this.username = username;
         this.role = role;
     }
@@ -38,6 +40,7 @@ public abstract class User {
     public ExpertiseArea getExpertiseArea() {
         return expertiseArea;
     }
+
     public void setExpertiseArea(ExpertiseArea expertiseArea) {
         this.expertiseArea = expertiseArea;
     }
@@ -45,19 +48,9 @@ public abstract class User {
     public SeniorityLevel getSeniorityLevel() {
         return seniorityLevel;
     }
+
     public void setSeniorityLevel(SeniorityLevel seniorityLevel) {
         this.seniorityLevel = seniorityLevel;
-    }
-
-    private final List<String> subordinates = new ArrayList<>();
-
-    public List<String> getSubordinates() {
-        return Collections.unmodifiableList(subordinates);
-    }
-
-    public void setSubordinates(List<String> subs) {
-        subordinates.clear();
-        if (subs != null) subordinates.addAll(subs);
     }
 
     public double getPerformanceScore() {
@@ -74,4 +67,12 @@ public abstract class User {
         this.hireDate = hireDate;
     }
 
+    public List<String> getSubordinates() {
+        if (subordinates == null) return Collections.emptyList();
+        return subordinates;
+    }
+
+    public void setSubordinates(List<String> subs) {
+        this.subordinates = (subs == null) ? new ArrayList<>() : new ArrayList<>(subs);
+    }
 }

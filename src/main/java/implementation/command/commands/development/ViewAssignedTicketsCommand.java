@@ -11,7 +11,6 @@ import implementation.dto.input.CommandInput;
 import implementation.dto.input.InputLoader;
 import implementation.repository.impl.JsonUserRepository;
 import implementation.service.TicketService;
-import implementation.util.JsonOutputUtils;
 
 import java.util.List;
 
@@ -29,25 +28,38 @@ public class ViewAssignedTicketsCommand implements Command {
         String username = input.getUsername();
 
         var userOpt = userRepo.findByUsername(username);
-        if (userOpt.isEmpty())
-            return new CommandResult(errorNode(input, "The user " + username + " does not exist."));
+        if (userOpt.isEmpty()) {
+            return new CommandResult(errorNode(input, "User not found."));
+        }
 
         Role role = userOpt.get().getRole();
-        if (role != Role.DEVELOPER)
+        if (role != Role.DEVELOPER) {
             return new CommandResult(errorNode(input,
                     "required role DEVELOPER; user role " + role + "."));
+        }
 
         List<Ticket> assigned = ticketService.viewAssignedTickets(username, input.getTimestamp());
 
         ObjectMapper mapper = InputLoader.getMapper();
         ObjectNode node = mapper.createObjectNode();
         node.put("command", input.getCommand());
-        node.put("username", username);
+        node.put("username", input.getUsername());
         node.put("timestamp", input.getTimestamp());
 
         ArrayNode arr = node.putArray("assignedTickets");
         for (Ticket t : assigned) {
-            arr.add(JsonOutputUtils.ticketForAssignedTickets(mapper, t));
+            ObjectNode tn = mapper.createObjectNode();
+            tn.put("id", t.getId());
+            tn.put("type", t.getType().toString());
+            tn.put("title", t.getTitle());
+            tn.put("businessPriority", t.getBusinessPriority().toString());
+            tn.put("status", t.getStatus().toString());
+            tn.put("createdAt", t.getCreatedAt() == null ? "" : t.getCreatedAt().toString());
+            tn.put("assignedAt", t.getAssignedAt());
+            tn.put("reportedBy", t.getReportedBy());
+            tn.set("comments", mapper.valueToTree(t.getComments()));
+            arr.add(tn);
+
         }
 
         return new CommandResult(node);

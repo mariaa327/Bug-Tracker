@@ -16,6 +16,16 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import implementation.dto.input.InputLoader;
+
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.time.temporal.ChronoUnit;
+
 public class TicketService {
     private final InMemoryTicketRepository repo;
     private final FlowService flowService;
@@ -127,9 +137,48 @@ public class TicketService {
         ExpertiseArea exp = ExpertiseArea.valueOf(params.getExpertiseArea());
 
         Ticket ticket = switch (type) {
-            case BUG -> new BugTicket(params.getTitle(), priority, creationDate, reportedBy, exp, null);
-            case FEATURE_REQUEST -> new FeatureRequestTicket(params.getTitle(), priority, creationDate, reportedBy, exp, null);
-            case UI_FEEDBACK -> new UiFeedbackTicket(params.getTitle(), priority, creationDate, reportedBy, exp, null);
+            case BUG -> new BugTicket(
+                    params.getTitle(),
+                    priority,
+                    creationDate,
+                    reportedBy,
+                    exp,
+                    null,
+                    params.getFrequency() == null
+                            ? null
+                            : Frequency.valueOf(params.getFrequency().trim().toUpperCase()),
+                    params.getSeverity() == null
+                            ? null
+                            : Severity.valueOf(params.getSeverity().trim().toUpperCase())
+            );
+
+            case FEATURE_REQUEST -> new FeatureRequestTicket(
+                    params.getTitle(),
+                    priority,
+                    creationDate,
+                    reportedBy,
+                    exp,
+                    null,
+                    params.getBusinessValue() == null
+                            ? null
+                            : BusinessValue.valueOf(params.getBusinessValue().trim().toUpperCase()),
+                    params.getCustomerDemand() == null
+                            ? null
+                            : CustomerDemand.fromString(params.getCustomerDemand())
+            );
+
+            case UI_FEEDBACK -> new UiFeedbackTicket(
+                    params.getTitle(),
+                    priority,
+                    creationDate,
+                    reportedBy,
+                    exp,
+                    null,
+                    params.getBusinessValue() == null
+                            ? null
+                            : BusinessValue.valueOf(params.getBusinessValue().trim().toUpperCase()),
+                    params.getUsabilityScore()
+            );
         };
 
         ticket.setId(repo.nextId());
@@ -240,18 +289,9 @@ public class TicketService {
         return null;
     }
 
-    private boolean canHandle(ExpertiseArea dev, ExpertiseArea req) {
-        if (dev == null || req == null) return false;
-        if (dev == ExpertiseArea.FULLSTACK) return true;
-
-        return switch (req) {
-            case DB -> dev == ExpertiseArea.DB || dev == ExpertiseArea.BACKEND;
-            case BACKEND -> dev == ExpertiseArea.BACKEND || dev == ExpertiseArea.DEVOPS;
-            case FRONTEND -> dev == ExpertiseArea.FRONTEND || dev == ExpertiseArea.DESIGN;
-            case DEVOPS -> dev == ExpertiseArea.DEVOPS;
-            case DESIGN -> dev == ExpertiseArea.DESIGN;
-            case FULLSTACK -> dev == ExpertiseArea.FULLSTACK;
-        };
+    private boolean canHandle(ExpertiseArea dev, ExpertiseArea required) {
+        if (dev == null) return false;
+        return dev.canHandle(required);
     }
 
     private String requiredExpertiseList(ExpertiseArea req) {
@@ -372,10 +412,23 @@ public class TicketService {
         if (from != to) {
             t.setStatus(to);
             t.logStatusChanged(from, to, devUsername, timestamp);
-        }
 
-        if (to == TicketStatus.CLOSED) {
-            t.setClosedAt(LocalDate.parse(timestamp));
+            LocalDate now = LocalDate.parse(timestamp);
+
+            if (to == TicketStatus.RESOLVED || to == TicketStatus.CLOSED) {
+                t.setLastResolvedOrClosedAt(now);
+            }
+
+            if (to == TicketStatus.RESOLVED) {
+                t.setSolvedAtDate(now);
+            }
+
+            if (to == TicketStatus.CLOSED) {
+                t.setClosedAt(now);
+                if (t.getSolvedAtDate() == null) {
+                    t.setSolvedAtDate(now);
+                }
+            }
         }
 
         return null;
@@ -429,5 +482,262 @@ public class TicketService {
 
     public List<Ticket> getAllTickets() {
         return repo.getAll();
+    }
+
+    public ObjectNode generateCustomerImpactReport() {
+        ObjectMapper mapper = InputLoader.getMapper();
+
+        List<Ticket> eligible = repo.getAll().stream()
+                .filter(Ticket::eligibleForCustomerImpact)
+                .toList();
+
+        ObjectNode report = mapper.createObjectNode();
+        report.put("totalTickets", eligible.size());
+
+        ObjectNode byType = mapper.createObjectNode();
+        for (TicketType t : TicketType.values()) {
+            long c = eligible.stream().filter(x -> x.getType() == t).count();
+            byType.put(t.name(), c);
+        }
+        report.set("ticketsByType", byType);
+
+        ObjectNode byPriority = mapper.createObjectNode();
+        for (BusinessPriority p : BusinessPriority.values()) {
+            long c = eligible.stream().filter(x -> x.getBusinessPriority() == p).count();
+            byPriority.put(p.name(), c);
+        }
+        report.set("ticketsByPriority", byPriority);
+
+        ObjectNode impactByType = mapper.createObjectNode();
+        for (TicketType t : TicketType.values()) {
+            double avg = eligible.stream()
+                    .filter(x -> x.getType() == t)
+                    .mapToDouble(Ticket::customerImpactScore)
+                    .average()
+                    .orElse(0.0);
+
+            avg = Math.round(avg * 100.0) / 100.0;
+            impactByType.put(t.name(), avg);
+        }
+
+        report.set("customerImpactByType", impactByType);
+        return report;
+    }
+
+    public ObjectNode generateTicketRiskReport() {
+        ObjectMapper mapper = InputLoader.getMapper();
+
+        List<Ticket> eligible = repo.getAll().stream()
+                .filter(t -> t.getStatus() == TicketStatus.OPEN || t.getStatus() == TicketStatus.IN_PROGRESS)
+                .toList();
+
+        ObjectNode report = mapper.createObjectNode();
+        report.put("totalTickets", eligible.size());
+
+        ObjectNode byType = mapper.createObjectNode();
+        for (TicketType type : TicketType.values()) {
+            long c = eligible.stream().filter(t -> t.getType() == type).count();
+            byType.put(type.name(), c);
+        }
+        report.set("ticketsByType", byType);
+
+        ObjectNode byPriority = mapper.createObjectNode();
+        for (BusinessPriority p : BusinessPriority.values()) {
+            long c = eligible.stream().filter(t -> t.getBusinessPriority() == p).count();
+            byPriority.put(p.name(), c);
+        }
+        report.set("ticketsByPriority", byPriority);
+
+        ObjectNode riskByType = mapper.createObjectNode();
+        for (TicketType type : TicketType.values()) {
+            double avg = eligible.stream()
+                    .filter(t -> t.getType() == type)
+                    .mapToDouble(Ticket::riskPercent)
+                    .average()
+                    .orElse(0.0);
+
+            RiskLevel rating = RiskLevel.fromPercent(avg);
+            riskByType.put(type.name(), rating.name());
+        }
+        report.set("riskByType", riskByType);
+
+        return report;
+    }
+
+    public ObjectNode generateResolutionEfficiencyReport() {
+        ObjectMapper mapper = InputLoader.getMapper();
+
+        List<Ticket> eligible = repo.getAll().stream()
+                .filter(t -> t.getStatus() == TicketStatus.RESOLVED || t.getStatus() == TicketStatus.CLOSED)
+                .toList();
+
+        ObjectNode report = mapper.createObjectNode();
+        report.put("totalTickets", eligible.size());
+
+        ObjectNode byType = mapper.createObjectNode();
+        for (TicketType type : TicketType.values()) {
+            long c = eligible.stream().filter(t -> t.getType() == type).count();
+            byType.put(type.name(), c);
+        }
+        report.set("ticketsByType", byType);
+
+        ObjectNode byPriority = mapper.createObjectNode();
+        for (BusinessPriority p : BusinessPriority.values()) {
+            long c = eligible.stream().filter(t -> t.getBusinessPriority() == p).count();
+            byPriority.put(p.name(), c);
+        }
+        report.set("ticketsByPriority", byPriority);
+
+        ObjectNode effByType = mapper.createObjectNode();
+        for (TicketType type : TicketType.values()) {
+            double avg = eligible.stream()
+                    .filter(t -> t.getType() == type)
+                    .mapToDouble(Ticket::efficiencyScore)
+                    .average()
+                    .orElse(0.0);
+
+            avg = Math.round(avg * 100.0) / 100.0;
+            effByType.put(type.name(), avg);
+        }
+        report.set("efficiencyByType", effByType);
+
+        return report;
+    }
+
+    public List<Map<String, Object>> generatePerformanceReport(String managerUsername, String timestamp) {
+        var managerOpt = userRepo.findByUsername(managerUsername);
+        if (managerOpt.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        var manager = managerOpt.get();
+
+        java.time.LocalDate cmdDate = java.time.LocalDate.parse(timestamp);
+        java.time.LocalDate prevMonth = cmdDate.minusMonths(1);
+        int targetYear = prevMonth.getYear();
+        int targetMonth = prevMonth.getMonthValue();
+
+        java.util.List<String> devUsernames = new java.util.ArrayList<>(manager.getSubordinates());
+        devUsernames.sort(String::compareTo);
+
+        java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+
+        for (String devUsername : devUsernames) {
+            var devOpt = userRepo.findByUsername(devUsername);
+            if (devOpt.isEmpty()) {
+                continue;
+            }
+            var dev = devOpt.get();
+
+            java.util.List<implementation.domain.ticket.Ticket> closed = repo.getAll().stream()
+                    .filter(t -> devUsername.equals(t.getAssignedTo()))
+                    .filter(t -> t.getStatus() == implementation.domain.ticket.TicketStatus.CLOSED)
+                    .filter(t -> t.getClosedAt() != null
+                            && t.getClosedAt().getYear() == targetYear
+                            && t.getClosedAt().getMonthValue() == targetMonth)
+                    .toList();
+
+            int closedTickets = closed.size();
+
+            double avgResTime = averageResolutionTime(closed);
+
+            int highPriorityTickets = (int) closed.stream()
+                    .filter(t -> t.getBusinessPriority() == BusinessPriority.MEDIUM
+                            || t.getBusinessPriority() == BusinessPriority.HIGH
+                            || t.getBusinessPriority() == BusinessPriority.CRITICAL)
+                    .count();
+
+            int bug = (int) closed.stream().filter(t -> t.getType() == implementation.domain.ticket.TicketType.BUG).count();
+            int feature = (int) closed.stream().filter(t -> t.getType() == implementation.domain.ticket.TicketType.FEATURE_REQUEST).count();
+            int ui = (int) closed.stream().filter(t -> t.getType() == implementation.domain.ticket.TicketType.UI_FEEDBACK).count();
+
+            double score = performanceScore(dev.getSeniorityLevel(), closedTickets, highPriorityTickets, avgResTime, bug, feature, ui);
+
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("username", devUsername);
+            row.put("closedTickets", closedTickets);
+            row.put("averageResolutionTime", round2(avgResTime));
+            row.put("performanceScore", round2(score));
+            row.put("seniority", dev.getSeniorityLevel() == null ? "" : dev.getSeniorityLevel().name());
+            out.add(row);
+        }
+
+        return out;
+    }
+
+    private double averageResolutionTime(List<Ticket> tickets) {
+        if (tickets.isEmpty()) return 0.0;
+
+        double sum = 0.0;
+        int cnt = 0;
+
+        for (Ticket t : tickets) {
+            LocalDate a = t.getAssignedAtDate();
+            LocalDate s = t.getSolvedAtDate();
+            if (a == null || s == null) continue;
+
+            long days = ChronoUnit.DAYS.between(a, s) + 1;
+            if (days < 1) days = 1;
+
+            sum += days;
+            cnt++;
+        }
+
+        return cnt == 0 ? 0.0 : (sum / cnt);
+    }
+
+    private double performanceScore(implementation.domain.user.SeniorityLevel level,
+                                    int closedTickets,
+                                    int highPriorityTickets,
+                                    double avgResTime,
+                                    int bug, int feature, int ui) {
+        if (level == null) return 0.0;
+
+        double seniorityBonus = switch (level) {
+            case JUNIOR -> 5.0;
+            case MID -> 15.0;
+            case SENIOR -> 30.0;
+        };
+
+        if (closedTickets == 0) {
+            return 0.0;
+        }
+
+        return switch (level) {
+            case JUNIOR -> {
+                double diversity = ticketDiversityFactor(bug, feature, ui);
+                double base = Math.max(0.0, 0.5 * closedTickets - diversity);
+                yield base + seniorityBonus;
+            }
+            case MID -> {
+                double base = Math.max(0.0, 0.5 * closedTickets + 0.7 * highPriorityTickets - 0.3 * avgResTime);
+                yield base + seniorityBonus;
+            }
+            case SENIOR -> {
+                double base = Math.max(0.0, 0.5 * closedTickets + 1.0 * highPriorityTickets - 0.5 * avgResTime);
+                yield base + seniorityBonus;
+            }
+        };
+    }
+
+    private static double averageResolvedTicketType(int bug, int feature, int ui) {
+        return (bug + feature + ui) / 3.0;
+    }
+
+    private static double standardDeviation(int bug, int feature, int ui) {
+        double mean = averageResolvedTicketType(bug, feature, ui);
+        double variance = (Math.pow(bug - mean, 2) + Math.pow(feature - mean, 2) + Math.pow(ui - mean, 2)) / 3.0;
+        return Math.sqrt(variance);
+    }
+
+    private static double ticketDiversityFactor(int bug, int feature, int ui) {
+        double mean = averageResolvedTicketType(bug, feature, ui);
+        if (mean == 0.0) return 0.0;
+        double std = standardDeviation(bug, feature, ui);
+        return std / mean;
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
     }
 }

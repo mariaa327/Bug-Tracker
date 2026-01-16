@@ -1,6 +1,5 @@
 package implementation.command;
 
-import implementation.command.commands.advanced.ViewNotificationsCommand;
 import implementation.command.commands.ticket.ReportTicketCommand;
 import implementation.command.commands.ticket.ViewTicketsCommand;
 import implementation.domain.flow.ProjectContext;
@@ -26,6 +25,13 @@ import implementation.command.commands.development.ChangeStatusCommand;
 import implementation.command.commands.development.ViewTicketHistoryCommand;
 import implementation.command.commands.development.UndoChangeStatusCommand;
 import implementation.command.commands.advanced.SearchCommand;
+import implementation.service.NotificationService;
+import implementation.command.commands.advanced.ViewNotificationsCommand;
+import implementation.command.commands.reports.GenerateCustomerImpactReportCommand;
+import implementation.command.commands.reports.GenerateTicketRiskReportCommand;
+import implementation.command.commands.reports.GenerateResolutionEfficiencyReportCommand;
+import implementation.command.commands.reports.AppStabilityReportCommand;
+import implementation.command.commands.reports.GeneratePerformanceReportCommand;
 
 public class CommandDispatcher {
     private final JsonUserRepository userRepo;
@@ -76,8 +82,17 @@ public class CommandDispatcher {
             return new SearchCommand(userRepo, ticketService, milestoneService).execute(input);
         } else if ("viewNotifications".equals(input.getCommand())) {
             return new ViewNotificationsCommand(userRepo, notificationService).execute(input);
+        } else if ("generateCustomerImpactReport".equals(input.getCommand())) {
+            return new GenerateCustomerImpactReportCommand(userRepo, ticketService).execute(input);
+        } else if ("generateTicketRiskReport".equals(input.getCommand())) {
+            return new GenerateTicketRiskReportCommand(userRepo, ticketService).execute(input);
+        } else if ("generateResolutionEfficiencyReport".equals(input.getCommand())) {
+            return new GenerateResolutionEfficiencyReportCommand(userRepo, ticketService).execute(input);
+        } else if ("appStabilityReport".equals(input.getCommand())) {
+            return new AppStabilityReportCommand(userRepo, ticketService, ctx).execute(input);
+        } else if ("generatePerformanceReport".equals(input.getCommand())) {
+            return new GeneratePerformanceReportCommand(userRepo, ticketService).execute(input);
         }
-
         return null;
     }
 }

@@ -2,7 +2,7 @@ package implementation.domain.ticket;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import implementation.domain.user.ExpertiseArea;
-
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +25,7 @@ public abstract class Ticket {
     private LocalDate assignedAt = null;
     private String solvedAt = "";
     private LocalDate closedAt;
+    private LocalDate lastResolvedOrClosedAt;
 
     private final List<Comment> comments = new ArrayList<>();
     private final List<Map<String, Object>> actions = new ArrayList<>();
@@ -178,15 +179,6 @@ public abstract class Ticket {
         actions.add(a);
     }
 
-    public void logDeAssigned(String by, String timestamp) {
-        Map<String, Object> a = new LinkedHashMap<>();
-        a.put("by", by);
-        a.put("timestamp", timestamp);
-        a.put("action", "DE-ASSIGNED");
-        actions.add(a);
-    }
-
-
     @JsonIgnore
     public LocalDate getClosedAt() {
         return closedAt;
@@ -196,4 +188,109 @@ public abstract class Ticket {
     public void setClosedAt(LocalDate closedAt) {
         this.closedAt = closedAt;
     }
+
+    public void logDeAssigned(String by, String timestamp) {
+        Map<String, Object> a = new LinkedHashMap<>();
+        a.put("by", by);
+        a.put("timestamp", timestamp);
+        a.put("action", "DE-ASSIGNED");
+        actions.add(a);
+    }
+
+    @JsonIgnore
+    public boolean eligibleForCustomerImpact() {
+        return businessPriority != BusinessPriority.LOW;
+    }
+
+    @JsonIgnore
+    protected abstract double customerImpactBaseScore();
+
+    @JsonIgnore
+    protected abstract double customerImpactMaxValue();
+
+    @JsonIgnore
+    public final double customerImpactScore() {
+        double base = customerImpactBaseScore();
+        double max = customerImpactMaxValue();
+        double raw = (base * 100.0) / max;
+        return Math.min(100.0, Math.round(raw * 100.0) / 100.0);
+    }
+
+    @JsonIgnore
+    protected abstract double riskBaseScore();
+
+    @JsonIgnore
+    protected abstract double riskMaxValue();
+
+    @JsonIgnore
+    public final double riskPercent() {
+        double max = riskMaxValue();
+        if (max == 0.0) return 0.0;
+
+        double p = (riskBaseScore() * 100.0) / max;
+        if (p > 100.0) p = 100.0;
+        if (p < 0.0) p = 0.0;
+        return Math.round(p * 100.0) / 100.0;
+    }
+
+    @JsonIgnore
+    public LocalDate getLastResolvedOrClosedAt() {
+        return lastResolvedOrClosedAt;
+    }
+
+    @JsonIgnore
+    public void setLastResolvedOrClosedAt(LocalDate d) {
+        this.lastResolvedOrClosedAt = d;
+    }
+
+    @JsonIgnore
+    public LocalDate getAssignedAtDate() {
+        return assignedAt;
+    }
+
+    @JsonIgnore
+    public LocalDate getClosedAtDate() {
+        return closedAt;
+    }
+
+    @JsonIgnore
+    public long daysToResolve() {
+        if (assignedAt == null || lastResolvedOrClosedAt == null) return 0;
+
+        long days = ChronoUnit.DAYS.between(assignedAt,
+                lastResolvedOrClosedAt) +1;
+
+        // dacă e aceeași zi => 1 zi
+        return Math.max(1, days);
+    }
+
+    @JsonIgnore
+    protected abstract double efficiencyBaseScore();
+
+    @JsonIgnore
+    protected abstract double efficiencyMaxValue();
+
+    @JsonIgnore
+    public final double efficiencyScore() {
+        double max = efficiencyMaxValue();
+        long d = daysToResolve();
+        if (max == 0.0 || d == 0) return 0.0;
+
+        double p = (efficiencyBaseScore() * 100.0) / max;
+        if (p > 100.0) p = 100.0;
+        if (p < 0.0) p = 0.0;
+        return Math.round(p * 100.0) / 100.0;
+    }
+
+    @JsonIgnore
+    public LocalDate getSolvedAtDate() {
+        if (solvedAt == null || solvedAt.isEmpty()) return null;
+        return LocalDate.parse(solvedAt);
+    }
+
+    @JsonIgnore
+    public void setSolvedAtDate(LocalDate d) {
+        this.solvedAt = (d == null) ? "" : d.toString();
+    }
+
 }

@@ -1,7 +1,6 @@
 package implementation.command.commands.milestone;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import implementation.command.Command;
 import implementation.command.CommandResult;
@@ -9,7 +8,6 @@ import implementation.dto.input.CommandInput;
 import implementation.dto.input.InputLoader;
 import implementation.repository.impl.JsonUserRepository;
 import implementation.service.MilestoneService;
-
 import java.util.List;
 import java.util.Map;
 
@@ -24,21 +22,22 @@ public class ViewMilestonesCommand implements Command {
 
     @Override
     public CommandResult execute(CommandInput input) {
-        if (userRepo.findByUsername(input.getUsername()).isEmpty()) {
+        if (!userRepo.findByUsername(input.getUsername()).isPresent()) {
             return CommandResult.error(input, "The user " + input.getUsername() + " does not exist.");
         }
 
-        List<Map<String, Object>> list = milestoneService.viewMilestones(input.getUsername(), input.getTimestamp());
+        List<Map<String, Object>> milestoneData = milestoneService.viewMilestones(
+                input.getUsername(),
+                input.getTimestamp()
+        );
 
         ObjectMapper mapper = InputLoader.getMapper();
-        ObjectNode out = mapper.createObjectNode();
-        out.put("command", input.getCommand());
-        out.put("username", input.getUsername());
-        out.put("timestamp", input.getTimestamp());
+        ObjectNode node = mapper.createObjectNode();
+        node.put("command", input.getCommand());
+        node.put("username", input.getUsername());
+        node.put("timestamp", input.getTimestamp());
+        node.set("milestones", mapper.valueToTree(milestoneData));
 
-        ArrayNode arr = out.putArray("milestones");
-        for (Map<String, Object> m : list) arr.add(mapper.valueToTree(m));
-
-        return CommandResult.success(out);
+        return CommandResult.success(node);
     }
 }

@@ -44,7 +44,6 @@ public class CreateMilestoneCommand implements Command {
                 input.getName(),
                 LocalDate.parse(input.getDueDate())
         );
-
         return null;
     }
 }

@@ -31,11 +31,14 @@ public class ViewTicketsCommand implements Command {
             return CommandResult.error(input, "The user " + input.getUsername() + " does not exist.");
         }
 
-        List<Ticket> tickets = switch (user.getRole()) {
-            case MANAGER -> ticketService.viewTicketsAsManager(input.getTimestamp());
-            case DEVELOPER -> ticketService.viewTicketsAsDeveloper(user.getUsername(), input.getTimestamp());
-            case REPORTER -> ticketService.viewTicketsAsReporter(user.getUsername(), input.getTimestamp());
-        };
+        List<Ticket> tickets;
+        if (user.getRole() == Role.MANAGER) {
+            tickets = ticketService.viewTicketsAsManager(input.getTimestamp());
+        } else if (user.getRole() == Role.DEVELOPER) {
+            tickets = ticketService.viewTicketsAsDeveloper(user.getUsername(), input.getTimestamp());
+        } else {
+            tickets = ticketService.viewTicketsAsReporter(user.getUsername(), input.getTimestamp());
+        }
 
         ObjectMapper mapper = InputLoader.getMapper();
         ObjectNode out = mapper.createObjectNode();

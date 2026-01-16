@@ -22,5 +22,4 @@ public enum ExpertiseArea {
             case DEVOPS -> required == DEVOPS;
         };
     }
-
 }
