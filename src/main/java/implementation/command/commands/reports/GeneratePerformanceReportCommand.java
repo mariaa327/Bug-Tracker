@@ -7,6 +7,7 @@ import implementation.command.CommandResult;
 import implementation.domain.user.Role;
 import implementation.dto.input.CommandInput;
 import implementation.dto.input.InputLoader;
+import implementation.metrics.PerformanceReportStrategy;
 import implementation.repository.impl.JsonUserRepository;
 import implementation.service.TicketService;
 
@@ -17,7 +18,8 @@ public class GeneratePerformanceReportCommand implements Command {
     private final JsonUserRepository userRepo;
     private final TicketService ticketService;
 
-    public GeneratePerformanceReportCommand(JsonUserRepository userRepo, TicketService ticketService) {
+    public GeneratePerformanceReportCommand(JsonUserRepository userRepo,
+                                            TicketService ticketService) {
         this.userRepo = userRepo;
         this.ticketService = ticketService;
     }
@@ -26,7 +28,8 @@ public class GeneratePerformanceReportCommand implements Command {
     public CommandResult execute(CommandInput input) {
         var uOpt = userRepo.findByUsername(input.getUsername());
         if (uOpt.isEmpty()) {
-            return CommandResult.error(input, "The user " + input.getUsername() + " does not exist.");
+            return CommandResult.error(input, "The user " +
+                    input.getUsername() + " does not exist.");
         }
 
         if (uOpt.get().getRole() != Role.MANAGER) {
@@ -35,8 +38,11 @@ public class GeneratePerformanceReportCommand implements Command {
                             + uOpt.get().getRole() + ".");
         }
 
-        List<Map<String, Object>> report = ticketService.generatePerformanceReport(
-                input.getUsername(), input.getTimestamp()
+        PerformanceReportStrategy strategy = new PerformanceReportStrategy();
+        List<Map<String, Object>> report = strategy.generate(
+                input.getUsername(),
+                input.getTimestamp(),
+                ticketService
         );
 
         ObjectMapper mapper = InputLoader.getMapper();

@@ -6,11 +6,12 @@ import implementation.command.Command;
 import implementation.command.CommandResult;
 import implementation.dto.input.CommandInput;
 import implementation.dto.input.InputLoader;
+import implementation.metrics.ReportStrategy;
+import implementation.metrics.ResolutionEfficiencyReportStrategy;
 import implementation.repository.impl.JsonUserRepository;
 import implementation.service.TicketService;
 
 public class GenerateResolutionEfficiencyReportCommand implements Command {
-
     private final JsonUserRepository userRepo;
     private final TicketService ticketService;
 
@@ -30,7 +31,9 @@ public class GenerateResolutionEfficiencyReportCommand implements Command {
         out.put("command", input.getCommand());
         out.put("username", input.getUsername());
         out.put("timestamp", input.getTimestamp());
-        out.set("report", ticketService.generateResolutionEfficiencyReport());
+
+        ReportStrategy strategy = new ResolutionEfficiencyReportStrategy();
+        out.set("report", strategy.generate(ticketService.getAllTickets(), mapper));
 
         return CommandResult.success(out);
     }

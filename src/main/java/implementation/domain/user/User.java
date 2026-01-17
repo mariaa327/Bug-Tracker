@@ -1,4 +1,5 @@
 package implementation.domain.user;
+
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
@@ -15,6 +16,7 @@ public abstract class User {
     private LocalDate hireDate;
 
     private List<String> subordinates = new ArrayList<>();
+    private final List<String> notifications = new ArrayList<>();
 
     public User() {}
 
@@ -74,5 +76,18 @@ public abstract class User {
 
     public void setSubordinates(List<String> subs) {
         this.subordinates = (subs == null) ? new ArrayList<>() : new ArrayList<>(subs);
+    }
+
+    public void update(String message) {
+        if (message == null) return;
+        notifications.add(message);
+    }
+
+    public List<String> getNotifications() {
+        return Collections.unmodifiableList(notifications);
+    }
+
+    public void clearNotifications() {
+        notifications.clear();
     }
 }

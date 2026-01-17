@@ -64,9 +64,11 @@ public class App {
             InMemoryTicketRepository ticketRepo = new InMemoryTicketRepository();
             InMemoryMilestoneRepository milestoneRepo = new InMemoryMilestoneRepository();
             NotificationService notificationService =
-                    new NotificationService(milestoneRepo, ticketRepo);
+                    new NotificationService(milestoneRepo, ticketRepo,
+                            userRepo);
 
-            ProjectContext ctx = new ProjectContext();
+            ProjectContext ctx = ProjectContext.getSingleton();
+            ctx.reset();
 
             if (!commands.isEmpty()) {
                 String minTs = commands.stream()

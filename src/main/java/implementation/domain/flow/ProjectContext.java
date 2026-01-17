@@ -6,6 +6,23 @@ public class ProjectContext {
     private LocalDate startDate;
     private boolean investorsLost = false;
 
+    private static ProjectContext singleton;
+
+    private ProjectContext() {
+    }
+
+    public static ProjectContext getSingleton() {
+        if (singleton == null) {
+            singleton = new ProjectContext();
+        }
+        return singleton;
+    }
+
+    public void reset() {
+        this.startDate = null;
+        this.investorsLost = false;
+    }
+
     public LocalDate getStartDate() {
         return startDate;
     }
