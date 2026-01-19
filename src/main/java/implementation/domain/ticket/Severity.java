@@ -7,10 +7,18 @@ public enum Severity {
 
     private final int score;
 
-    Severity(int score) {
+    /**
+     * creates the severity
+     * @param score the severity score
+     */
+    Severity(final int score) {
         this.score = score;
     }
 
+    /**
+     * returns the severity score
+     * @return the severity score
+     */
     public int score() {
         return score;
     }

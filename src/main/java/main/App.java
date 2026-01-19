@@ -7,15 +7,17 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import implementation.command.CommandDispatcher;
 import implementation.command.CommandResult;
 import implementation.domain.flow.ProjectContext;
-import implementation.dto.input.CommandInput;
-import implementation.dto.input.InputLoader;
-import implementation.repository.impl.JsonUserRepository;
-import implementation.repository.impl.InMemoryTicketRepository;
+import implementation.input.CommandInput;
+import implementation.input.InputReader;
+import implementation.registry.UserRegistry;
+import implementation.registry.TicketRegistry;
 import implementation.service.TicketService;
 import implementation.service.FlowService;
-import implementation.repository.impl.InMemoryMilestoneRepository;
+import implementation.registry.MilestoneRegistry;
 import implementation.service.MilestoneService;
 import implementation.service.NotificationService;
+import implementation.input.UserReader;
+import implementation.domain.user.User;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,7 +28,7 @@ import java.util.List;
  * main.App represents the main application logic that processes input commands,
  * generates outputs, and writes them to a file
  */
-public class App {
+public final class App {
     private App() {
     }
 
@@ -56,13 +58,19 @@ public class App {
         */
 
         try {
-            List<CommandInput> commands = InputLoader.loadCommands(inputPath);
+            List<CommandInput> commands = InputReader.loadCommands(inputPath);
 
-            ObjectMapper mapper = InputLoader.getMapper();
-            JsonUserRepository userRepo = new JsonUserRepository(INPUT_USERS_FIELD, mapper);
+            ObjectMapper mapper = InputReader.getMapper();
+            UserReader userReader = new UserReader();
+            List<User> users = userReader.load(INPUT_USERS_FIELD, mapper);
 
-            InMemoryTicketRepository ticketRepo = new InMemoryTicketRepository();
-            InMemoryMilestoneRepository milestoneRepo = new InMemoryMilestoneRepository();
+            UserRegistry userRepo = new UserRegistry();
+            for (User u : users) {
+                userRepo.add(u);
+            }
+
+            TicketRegistry ticketRepo = new TicketRegistry();
+            MilestoneRegistry milestoneRepo = new MilestoneRegistry();
             NotificationService notificationService =
                     new NotificationService(milestoneRepo, ticketRepo,
                             userRepo);
@@ -71,18 +79,21 @@ public class App {
             ctx.reset();
 
             if (!commands.isEmpty()) {
-                String minTs = commands.stream()
-                        .map(CommandInput::getTimestamp)
-                        .min(String::compareTo)
-                        .orElse(commands.get(0).getTimestamp());
-
+                String minTs = commands.get(0).getTimestamp();
+                for (CommandInput c : commands) {
+                    if (c.getTimestamp().compareTo(minTs) < 0) {
+                        minTs = c.getTimestamp();
+                    }
+                }
                 ctx.setStartDateIfNull(minTs);
             }
             ctx.setInvestorsLost(false);
 
             FlowService flowService = new FlowService(ctx);
-            TicketService ticketService = new TicketService(ticketRepo, flowService, userRepo, milestoneRepo);
-            MilestoneService milestoneService = new MilestoneService(milestoneRepo, ticketRepo);
+            TicketService ticketService = new TicketService(ticketRepo,
+                    flowService, userRepo, milestoneRepo);
+            MilestoneService milestoneService =
+                    new MilestoneService(milestoneRepo, ticketRepo);
 
             CommandDispatcher dispatcher = new CommandDispatcher(userRepo,
                     ticketService, milestoneService, ctx, notificationService);

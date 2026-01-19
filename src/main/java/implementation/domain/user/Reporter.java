@@ -1,7 +1,14 @@
 package implementation.domain.user;
 
-public class Reporter extends User{
-    public Reporter(String username){
+/**
+ * represents a reporter user
+ */
+public class Reporter extends User {
+    /**
+     * creates a reporter with the given username
+     * @param username the reporter username
+     */
+    public Reporter(final String username) {
         super(username, Role.REPORTER);
     }
 }

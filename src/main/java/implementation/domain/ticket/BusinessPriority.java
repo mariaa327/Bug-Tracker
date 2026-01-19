@@ -1,26 +1,52 @@
 package implementation.domain.ticket;
 
 public enum BusinessPriority {
-    CRITICAL,
-    HIGH,
-    MEDIUM,
-    LOW;
+    LOW(1) {
+        @Override
+        public BusinessPriority bump() {
+            return MEDIUM;
+        }
+    },
+    MEDIUM(2) {
+        @Override
+        public BusinessPriority bump() {
+            return HIGH;
+        }
+    },
+    HIGH(3) {
+        @Override
+        public BusinessPriority bump() {
+            return CRITICAL;
+        }
+    },
+    CRITICAL(4) {
+        @Override
+        public BusinessPriority bump() {
+            return CRITICAL;
+        }
+    };
 
-    public BusinessPriority bump() {
-        return switch (this) {
-            case LOW -> MEDIUM;
-            case MEDIUM -> HIGH;
-            case HIGH -> CRITICAL;
-            case CRITICAL -> CRITICAL;
-        };
+    private final int score;
+
+    /**
+     * creates the business priority
+     * @param score the priority score
+     */
+    BusinessPriority(final int score) {
+        this.score = score;
     }
 
+    /**
+     * returns the priority score
+     * @return the priority score
+     */
     public int score() {
-        return switch (this) {
-            case LOW -> 1;
-            case MEDIUM -> 2;
-            case HIGH -> 3;
-            case CRITICAL -> 4;
-        };
+        return score;
     }
+
+    /**
+     * bumps the priority to the next level
+     * @return the next priority level
+     */
+    public abstract BusinessPriority bump();
 }

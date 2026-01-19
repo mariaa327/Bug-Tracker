@@ -8,10 +8,18 @@ public enum Frequency {
 
     private final int score;
 
-    Frequency(int score) {
+    /**
+     * creates the frequency
+     * @param score the frequency score
+     */
+    Frequency(final int score) {
         this.score = score;
     }
 
+    /**
+     * returns the frequency score
+     * @return the frequency score
+     */
     public int score() {
         return score;
     }

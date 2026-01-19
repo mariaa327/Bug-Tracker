@@ -1,21 +1,44 @@
 package implementation.domain.ticket;
 
 public enum CustomerDemand {
-    LOW, MEDIUM, HIGH, VERY_HIGH;
+    LOW(1),
+    MEDIUM(3),
+    HIGH(6),
+    VERY_HIGH(10);
 
-    public int score() {
-        return switch (this) {
-            case LOW -> 1;
-            case MEDIUM -> 3;
-            case HIGH -> 6;
-            case VERY_HIGH -> 10;
-        };
+    private final int score;
+
+    /**
+     * creates the customer demand
+     * @param score the demand score
+     */
+    CustomerDemand(final int score) {
+        this.score = score;
     }
 
-    public static CustomerDemand fromString(String s) {
-        if (s == null) return null;
+    /**
+     * returns the demand score
+     * @return the demand score
+     */
+    public int score() {
+        return score;
+    }
+
+    /**
+     * parses a customer demand from string
+     * @param s the input string
+     * @return the parsed customer demand or null if input is null
+     */
+    public static CustomerDemand fromString(final String s) {
+        if (s == null) {
+            return null;
+        }
+
         String v = s.trim().toUpperCase();
-        if ("CRITICAL".equals(v)) v = "VERY_HIGH";
+        if ("CRITICAL".equals(v)) {
+            return VERY_HIGH;
+        }
+
         return CustomerDemand.valueOf(v);
     }
 }

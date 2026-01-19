@@ -1,26 +1,60 @@
 package implementation.domain.ticket;
 
 public enum TicketStatus {
-    OPEN,
-    IN_PROGRESS,
-    RESOLVED,
-    CLOSED;
+    OPEN {
+        @Override
+        public TicketStatus next() {
+            return IN_PROGRESS;
+        }
 
-    public TicketStatus next() {
-        return switch (this) {
-            case OPEN -> IN_PROGRESS;
-            case IN_PROGRESS -> RESOLVED;
-            case RESOLVED -> CLOSED;
-            case CLOSED -> CLOSED;
-        };
-    }
+        @Override
+        public TicketStatus prev() {
+            return OPEN;
+        }
+    },
+    IN_PROGRESS {
+        @Override
+        public TicketStatus next() {
+            return RESOLVED;
+        }
 
-    public TicketStatus prev() {
-        return switch (this) {
-            case OPEN -> OPEN;
-            case IN_PROGRESS -> OPEN;
-            case RESOLVED -> IN_PROGRESS;
-            case CLOSED -> RESOLVED;
-        };
-    }
+        @Override
+        public TicketStatus prev() {
+            return OPEN;
+        }
+    },
+    RESOLVED {
+        @Override
+        public TicketStatus next() {
+            return CLOSED;
+        }
+
+        @Override
+        public TicketStatus prev() {
+            return IN_PROGRESS;
+        }
+    },
+    CLOSED {
+        @Override
+        public TicketStatus next() {
+            return CLOSED;
+        }
+
+        @Override
+        public TicketStatus prev() {
+            return RESOLVED;
+        }
+    };
+
+    /**
+     * returns the next status in the workflow
+     * @return the next status
+     */
+    public abstract TicketStatus next();
+
+    /**
+     * returns the previous status in the workflow
+     * @return the previous status
+     */
+    public abstract TicketStatus prev();
 }

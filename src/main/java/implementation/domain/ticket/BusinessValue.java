@@ -8,10 +8,18 @@ public enum BusinessValue {
 
     private final int score;
 
-    BusinessValue(int score) {
+    /**
+     * creates the business value
+     * @param score the value score
+     */
+    BusinessValue(final int score) {
         this.score = score;
     }
 
+    /**
+     * returns the value score
+     * @return the value score
+     */
     public int score() {
         return score;
     }
